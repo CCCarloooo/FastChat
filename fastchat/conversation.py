@@ -355,7 +355,7 @@ register_conv_template(
     )
 )
 
-# Vicuna v1.1 template
+# sysprompt template
 register_conv_template(
     Conversation(
         name="sysprompt",
