@@ -35,6 +35,12 @@ FastChat is an open platform for training, serving, and evaluating large languag
 
 ## Install
 
+```bash
+pip3 install --upgrade pip  # enable PEP 660 support
+pip3 install -e ".[model_worker,webui]"
+pip3 install -e ".[train]"
+```
+
 ### Method 1: With pip
 
 ```bash
