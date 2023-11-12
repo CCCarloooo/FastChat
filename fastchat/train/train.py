@@ -71,11 +71,20 @@ def rank0_print(*args):
 
 def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
     """Collects the state dict and dump to disk."""
+    if trainer.deepspeed:
+        torch.cuda.synchronize()
+        trainer.save_model(output_dir)
+        print("Saving deepspeed model")
+        return
+        
     state_dict = trainer.model.state_dict()
     if trainer.args.should_save:
-        cpu_state_dict = {key: value.cpu() for key, value in state_dict.items()}
+        cpu_state_dict = {
+            key: value.cpu()
+            for key, value in state_dict.items()
+        }
         del state_dict
-        trainer._save(output_dir, state_dict=cpu_state_dict)  # noq
+        trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
 
 
 def preprocess(
@@ -315,10 +324,13 @@ def train():
     trainer = Trainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
+    
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
+    
+
 
     # Save model
     model.config.use_cache = True
