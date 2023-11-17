@@ -74,24 +74,25 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
     if trainer.deepspeed:
         torch.cuda.synchronize()
         trainer.save_model(output_dir)
-        print("Saving deepspeed model")
+        #print("Saving deepspeed model")
         return
         
-    state_dict = trainer.model.state_dict()
-    if trainer.args.should_save:
-        cpu_state_dict = {
-            key: value.cpu()
-            for key, value in state_dict.items()
-        }
-        del state_dict
-        trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    from torch.distributed.fsdp import StateDictType, FullStateDictConfig
+
+    save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+    with FSDP.state_dict_type(
+        trainer.model, StateDictType.FULL_STATE_DICT, save_policy
+    ):
+        trainer.save_model()
 
 
 def preprocess(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
-    conv = get_conversation_template("vicuna")
+    #conv = get_conversation_template("vicuna")
+    conv = get_conversation_template("sysprompt")
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
     # data数据的格式
     #    "conversations": [
