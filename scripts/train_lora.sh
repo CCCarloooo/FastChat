@@ -1,18 +1,20 @@
-deepspeed fastchat/train/train_lora.py \
-    --model_name_or_path lmsys/vicuna-7b-v1.3  \
+cd /mnt/data2/mxdi/archive/FastChat/
+
+deepspeed --include "localhost:0,1" --master_port 20701 fastchat/train/train_lora.py \
+    --model_name_or_path /mnt/data2/mxdi/archive/hf-mirror/open_llama_3b  \
     --lora_r 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --data_path $DATA_PATH \
+    --data_path /mnt/data2/mxdi/archive/hf-mirror/SlimOrca \
     --output_dir ./checkpoints \
-    --num_train_epochs 150 \
-    --fp16 True \
-    --per_device_train_batch_size 2 \
+    --num_train_epochs 1 \
+    --bf16 True \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 2 \
-    --gradient_accumulation_steps 1 \
-    --evaluation_strategy "steps" \
+    --gradient_accumulation_steps 2 \
+    --evaluation_strategy "no" \
     --eval_steps 100  \
-    --save_strategy "steps" \
+    --save_strategy "no" \
     --save_steps 200 \
     --save_total_limit 2 \
     --learning_rate 2e-5 \
@@ -24,6 +26,7 @@ deepspeed fastchat/train/train_lora.py \
     --tf32 True \
     --model_max_length 2048 \
     --q_lora False \
-    --deepspeed $PATH_TO_DEEPSPEED_CONFIG \
+    --deepspeed /mnt/data2/mxdi/archive/LLaVA/scripts/zero2.json \
     --gradient_checkpointing True \
-    --flash_attn False
+    --flash_attn True \
+    --lazy_preprocess True
