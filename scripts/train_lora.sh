@@ -26,7 +26,7 @@ deepspeed --include "localhost:0,1" --master_port 20701 fastchat/train/train_lor
     --tf32 True \
     --model_max_length 2048 \
     --q_lora False \
-    --deepspeed /mnt/data2/mxdi/archive/LLaVA/scripts/zero2.json \
+    --deepspeed /mnt/data2/mxdi/archive/FastChat/scripts/zero2.json \
     --gradient_checkpointing True \
     --flash_attn True \
     --lazy_preprocess True

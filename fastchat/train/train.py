@@ -92,12 +92,7 @@ def preprocess(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
-<<<<<<< HEAD
     conv = get_conversation_template("llama2")
-=======
-    #conv = get_conversation_template("vicuna")
-    conv = get_conversation_template("sysprompt")
->>>>>>> ee9bafdf8a03d52ce8814baff209030636e8eb80
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
