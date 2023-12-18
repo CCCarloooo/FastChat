@@ -70,7 +70,14 @@ def rank0_print(*args):
         print(*args)
 
 
-def trainer_save_model_safe(trainer: transformers.Trainer):
+def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
+    """Collects the state dict and dump to disk."""
+    if trainer.deepspeed:
+        torch.cuda.synchronize()
+        trainer.save_model(output_dir)
+        #print("Saving deepspeed model")
+        return
+        
     from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
     from torch.distributed.fsdp import StateDictType, FullStateDictConfig
 
@@ -85,7 +92,12 @@ def preprocess(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
+<<<<<<< HEAD
     conv = get_conversation_template("llama2")
+=======
+    #conv = get_conversation_template("vicuna")
+    conv = get_conversation_template("sysprompt")
+>>>>>>> ee9bafdf8a03d52ce8814baff209030636e8eb80
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -382,15 +394,18 @@ def train():
     trainer = Trainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
+    
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
+    
+
 
     # Save model
     model.config.use_cache = True
     trainer.save_state()
-    trainer_save_model_safe(trainer)
+    safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
 
 
 if __name__ == "__main__":

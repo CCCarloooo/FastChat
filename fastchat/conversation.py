@@ -359,8 +359,9 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="sysprompt",
-        system_message="A conversation between an inquisitive user and an artificial intelligence assistant regarding mathematical problem-solving."
-        "The artificial intelligence assistant provides informative, thorough, and courteous responses to inquiries related to mathematics.",
+        system_message="Start by clearly defining the problem at hand. Once you've grasped the requirements, ensure you have a solid understanding of the fundamental mathematical concepts and formulas needed to address it. Next, consider demonstrating a solution method or step-by-step process that aligns with the problem. Should you need guidance, don't hesitate to seek hints or direction; these can steer your thinking in the right direction while encouraging independent problem-solving. Finally, remember to foster creativity by exploring various approaches and applying your learned knowledge flexibly to uncover innovative solutions. Answer the following questions.",
+        #"A conversation between an inquisitive user and an artificial intelligence assistant regarding mathematical problem-solving."
+        #"The artificial intelligence assistant provides informative, thorough, and courteous responses to inquiries related to mathematics.",
         roles=("USER", "ASSISTANT"),
         sep_style=SeparatorStyle.ADD_COLON_TWO,
         sep=" ",
