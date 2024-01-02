@@ -30,7 +30,6 @@ from transformers.trainer_pt_utils import LabelSmoother
 from datasets import load_dataset, load_from_disk
 from fastchat.conversation import SeparatorStyle
 from fastchat.model.model_adapter import get_conversation_template
-
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 
@@ -92,7 +91,7 @@ def preprocess(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
-    conv = get_conversation_template("llama2")
+    conv = get_conversation_template("vicuna")
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
     # Apply prompt templates
@@ -106,6 +105,7 @@ def preprocess(
         for j, sentence in enumerate(source):
             role = roles[sentence["from"]]
             assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
         conversations.append(conv.get_prompt())
 
     # Tokenize conversations
@@ -185,7 +185,6 @@ def dataset_preprocess(
     conv = get_conversation_template("vicuna")
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
     roles['system'] = 'system'
-    
     # Apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
@@ -310,7 +309,7 @@ class LazySupervisedDataset(Dataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         if i in self.cached_data_dict:
             return self.cached_data_dict[i]
-        ret = dataset_preprocess([self.raw_data[i]["conversations"]], self.tokenizer)
+        ret = preprocess([self.raw_data[i]["conversations"]], self.tokenizer)
         ret = dict(
             input_ids=ret["input_ids"][0],
             labels=ret["labels"][0],
@@ -329,11 +328,14 @@ def make_supervised_data_module(
         LazySupervisedDataset if data_args.lazy_preprocess else SupervisedDataset
     )
     rank0_print("Loading data...")
-
-    # train_json = json.load(open(data_args.data_path, "r"))
+    datajson = True
+    if datajson:
+        train_json = json.load(open(data_args.data_path, "r"))
+        train_dataset = dataset_cls(train_json, tokenizer=tokenizer)
+    else:
+        train_set = load_dataset(data_args.data_path)['train']
+        train_dataset = dataset_cls(train_set, tokenizer=tokenizer)
     # train_set = load_from_disk(data_args.data_path)
-    train_set = load_dataset(data_args.data_path)['train']
-    train_dataset = dataset_cls(train_set, tokenizer=tokenizer)
 # 这一步其实是 init dataset_cls其实是一个类
     if data_args.eval_data_path:
         eval_json = json.load(open(data_args.eval_data_path, "r"))

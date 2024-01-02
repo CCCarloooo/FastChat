@@ -1,21 +1,22 @@
 cd /mnt/data2/mxdi/archive/FastChat/
-
-deepspeed --include "localhost:2,3" --master_port 20701 fastchat/train/train_lora.py \
-    --deepspeed /mnt/data2/mxdi/archive/FastChat/scripts/zero2.json \
+export TORCH_DISTRIBUTED_DEBUG=INFO
+CUDA_VISIBLE_DEVICES=5 python fastchat/train/train_plora.py \
     --model_name_or_path /mnt/data2/mxdi/archive/hf-mirror/llama-7b \
     --lora_r 1 \
     --lora_alpha 2 \
-    --data_path /mnt/data2/mxdi/archive/ift_prac/all_traindata_new_shuffle.json\
-    --output_dir ./checkpoints/rank1lora/0101\
-    --num_train_epochs 1 \
+    --interval 5 \
+    --data_path /mnt/data2/mxdi/archive/ift_prac/all_sampled1000.json\
+    --output_dir ./checkpoints/plora_rank1_test_7797 \
+    --num_train_epochs 2 \
+    --max_steps 12 \
     --bf16 True \
-    --per_device_train_batch_size 12 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 2 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
     --eval_steps 100  \
     --save_strategy "no" \
-    --save_steps 100 \
+    --save_steps 5 \
     --save_total_limit 30 \
     --learning_rate 1e-4 \
     --weight_decay 0. \
@@ -27,5 +28,5 @@ deepspeed --include "localhost:2,3" --master_port 20701 fastchat/train/train_lor
     --model_max_length 1280 \
     --q_lora False \
     --gradient_checkpointing True \
-    --flash_attn True \
+    --flash_attn False \
     --lazy_preprocess True
