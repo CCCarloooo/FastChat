@@ -48,6 +48,8 @@ class pl_trainer(Trainer):
         self.interval = kwargs.get('args').interval
         self.update = 0
         self.update = self.init_interval
+        self.decay = 0.9
+        self.lora_offload = 0
     
     def _maybe_log_save_evaluate(self, tr_loss, model, trial, epoch, ignore_keys_for_eval):
         # print('######################进入私有_maybe_log_save_evaluate')
@@ -173,7 +175,9 @@ class pl_trainer(Trainer):
             or is_sagemaker_mp_enabled()
             or self.fsdp is not None
         )
-
+        ##############modify
+        steps_every = max_steps // num_train_epochs
+        ##############modify
         # We need to reset the scheduler, as its parameters may be different on subsequent calls
         if self._created_lr_scheduler:
             self.lr_scheduler = None
@@ -459,14 +463,19 @@ class pl_trainer(Trainer):
 
                     if self.state.global_step>=self.update:
                         if model.device.index==0:
-                            print("global_step>=update_step", self.state.global_step,'/',self.update)
+                            print("\nglobal_step>=update_step", self.state.global_step,'/',self.update)
                             print(self.lr_scheduler.get_last_lr())
+                            print('卸载的次数为：',self.lora_offload)
                             # print(len(model.base_model.model.model.layers))
+                        #############################decay################################
+                        decay_rate = self.decay**(self.lora_offload)
+                        self.lora_offload+=1
                         self.update+=self.interval
                         # ipdb.set_trace()
                         #收纳最后
-                        if self.update+self.interval>max_steps:
-                            self.update=max_steps+1
+                        if self.update+self.interval > steps_every:
+                            self.update=steps_every
+                            steps_every += steps_every
 
                         if self.model_name=='llama':
 
@@ -477,16 +486,19 @@ class pl_trainer(Trainer):
                                     base = model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).base_layer
                                     # ipdb.set_trace()
                                     scaling = model.peft_config['default'].lora_alpha / model.peft_config['default'].r
-                                    delta_ab = lora_b.weight @ lora_a.weight * scaling
+                                    ##############去掉了decay_rate
+                                    delta_ab = lora_b.weight @ lora_a.weight * scaling * 0.7
 
                                     f_out, f_in = base.weight.shape 
                                     r = lora_a.weight.shape[0]
 
                                     with torch.no_grad():
                                         model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).base_layer.weight.copy_(delta_ab + base.weight)
-                                        model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight.copy_(nn.Linear(f_in, r, bias=False).weight)
-                                        nn.init.kaiming_uniform_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight, a=math.sqrt(5))
-                                        nn.init.zeros_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_B['default'].weight)
+                                        model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight.mul_(0.3)
+                                        model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_B['default'].weight.mul_(0.3)
+                                        # model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight.copy_(nn.Linear(f_in, r, bias=False).weight)
+                                        # nn.init.kaiming_uniform_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight, a=math.sqrt(5))
+                                        # nn.init.zeros_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_B['default'].weight)
                                     # 过去被使用
                                     # base.weight.copy_(delta_ab + base.weight)
                                     # lora_a.weight.copy_(nn.Linear(in_features, r, bias=False).weight) 
@@ -552,7 +564,7 @@ class pl_trainer(Trainer):
                         for name in optimizer_state_keys:
                             pruning_fn(self.optimizer.state[set(self.optimizer.state).pop()][name])
                             # print('#######################optimizer',self.optimizer.state[set(self.optimizer.state).pop()][name])
-                        # ipdb.set_trace()
+                        
                     #======================modify==============================
 
                     self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch

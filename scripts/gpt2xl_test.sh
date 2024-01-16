@@ -1,30 +1,31 @@
 cd /mnt/data2/mxdi/archive/FastChat/
-export TORCH_DISTRIBUTED_DEBUG=INFO
-CUDA_VISIBLE_DEVICES=5 python fastchat/train/train_plora.py \
-    --model_name_or_path /mnt/data2/mxdi/archive/hf-mirror/llama-7b \
+
+deepspeed --include "localhost:0" --master_port 20701 fastchat/train/train_plora_test.py \
+    --deepspeed /mnt/data2/mxdi/archive/FastChat/scripts/zero2.json \
+    --model_name_or_path /mnt/data2/mxdi/archive/hf-mirror/gpt2-xl \
     --lora_r 1 \
     --lora_alpha 2 \
-    --init_interval 200 \
-    --interval 20 \
+    --init_interval 2 \
+    --interval 5 \
+    --max_steps 20 \
     --data_path /mnt/data2/mxdi/archive/ift_prac/multitask/all_sampled1000.json \
-    --output_dir ./checkpoints/plora_rank1_test_7797_0102 \
-    --num_train_epochs 2 \
-    --max_steps 12 \
+    --output_dir ./checkpoints/plora_rank1_test_7796_0109 \
+    --num_train_epochs 1 \
     --bf16 True \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 2 \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
     --eval_steps 100  \
-    --save_strategy "no" \
-    --save_steps 5 \
+    --save_strategy "steps" \
+    --save_steps 100 \
     --save_total_limit 30 \
     --learning_rate 1e-4 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
     --logging_strategy "steps" \
-    --logging_steps 20 \
+    --logging_steps 1 \
     --tf32 True \
     --model_max_length 1280 \
     --q_lora False \

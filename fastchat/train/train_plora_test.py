@@ -20,19 +20,18 @@ import logging
 import pathlib
 import typing
 import os
-import importlib
+
 from deepspeed import zero
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import transformers
-importlib.reload(transformers)
 from transformers import Trainer, BitsAndBytesConfig, deepspeed
 import torch
 import numpy as np
 import random
 
 # from fastchat.train.plora_trainer import pl_trainer
-from fastchat.train.plora_trainer_totally_clear import pl_trainer
+from fastchat.train.plora_trainer import pl_trainer
 from fastchat.train.train import (
     DataArguments,
     ModelArguments,
@@ -68,7 +67,7 @@ class LoraArguments:
         default_factory=lambda: ["q_proj", "v_proj"]
     )
     lora_weight_path: str = ""
-    lora_bias: str = "all" ###########modify
+    lora_bias: str = "none"
     q_lora: bool = False
 
 
@@ -226,12 +225,16 @@ def train():
         state_dict = get_peft_state_maybe_zero_3(
             model.named_parameters(), lora_args.lora_bias
         )
-    print("merge model...")
-    model = model.merge_and_unload()
-    print("Saving model...")
+    
     if training_args.local_rank == 0:
+        print("merge model...")
+    model = model.merge_and_unload()
+
+    if training_args.local_rank == 0:
+        print("Saving model...")
         model.save_pretrained(training_args.output_dir)
         tokenizer.save_pretrained(training_args.output_dir)
+
 
 if __name__ == "__main__":
     train()

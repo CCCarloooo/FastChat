@@ -1,17 +1,17 @@
 cd /mnt/data2/mxdi/archive/FastChat/
 
-deepspeed --include "localhost:0,1" --master_port 20701 fastchat/train/train_plora.py \
+deepspeed --include "localhost:0" --master_port 20701 fastchat/train/train_plora.py \
     --deepspeed /mnt/data2/mxdi/archive/FastChat/scripts/zero2.json \
     --model_name_or_path /mnt/data2/mxdi/archive/hf-mirror/llama-7b \
     --lora_r 1 \
     --lora_alpha 2 \
+    --init_interval 5 \
     --interval 5 \
-    --max_steps 12 \
-    --data_path /mnt/data2/mxdi/archive/ift_prac/all_sampled1000.json\
-    --output_dir ./checkpoints/plora_rank1_test_7796 \
+    --data_path /mnt/data2/mxdi/archive/ift_prac/multitask/all_sampled1000.json \
+    --output_dir ./checkpoints/plora_rank1_test_7796_0110 \
     --num_train_epochs 1 \
     --bf16 True \
-    --per_device_train_batch_size 6 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 2 \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
@@ -21,10 +21,10 @@ deepspeed --include "localhost:0,1" --master_port 20701 fastchat/train/train_plo
     --save_total_limit 30 \
     --learning_rate 1e-4 \
     --weight_decay 0. \
-    --warmup_ratio 0.03 \
-    --lr_scheduler_type "cosine" \
+    --warmup_ratio 0.5 \
+    --lr_scheduler_type "constant_with_warmup" \
     --logging_strategy "steps" \
-    --logging_steps 20 \
+    --logging_steps 1 \
     --tf32 True \
     --model_max_length 1280 \
     --q_lora False \

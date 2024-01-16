@@ -27,6 +27,8 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import transformers
 from transformers import Trainer, BitsAndBytesConfig, deepspeed
 import torch
+import numpy as np
+import random
 
 from fastchat.train.train import (
     DataArguments,
@@ -37,6 +39,7 @@ from fastchat.train.train import (
 from fastchat.train.llama_flash_attn_monkey_patch import (
     replace_llama_attn_with_flash_attn,
 )
+
 
 
 @dataclass
@@ -102,6 +105,12 @@ def get_peft_state_maybe_zero_3(named_params, bias):
 
 
 def train():
+    # seed_all
+    seed = 42
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments, LoraArguments)
     )
@@ -214,8 +223,12 @@ def train():
             model.named_parameters(), lora_args.lora_bias
         )
 
+    print("merge model...")
+    model = model.merge_and_unload()
+    print("Saving model...")
     if training_args.local_rank == 0:
-        model.save_pretrained(training_args.output_dir, state_dict=state_dict)
+        model.save_pretrained(training_args.output_dir)
+        tokenizer.save_pretrained(training_args.output_dir)
 
 
 if __name__ == "__main__":

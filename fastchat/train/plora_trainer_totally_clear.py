@@ -50,7 +50,6 @@ class pl_trainer(Trainer):
         self.update = self.init_interval
     
     def _maybe_log_save_evaluate(self, tr_loss, model, trial, epoch, ignore_keys_for_eval):
-        # print('######################进入私有_maybe_log_save_evaluate')
         if self.control.should_log:
             if is_torch_tpu_available():
                 xm.mark_step()
@@ -174,14 +173,17 @@ class pl_trainer(Trainer):
             or self.fsdp is not None
         )
 
+        ##############modify
+        steps_every = max_steps // num_train_epochs
+        ##############modify
         # We need to reset the scheduler, as its parameters may be different on subsequent calls
         if self._created_lr_scheduler:
             self.lr_scheduler = None
             self._created_lr_scheduler = False
 
         if self.is_deepspeed_enabled:
-            self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=max_steps)
-        # print('######################初始化的optimizer',self.optimizer)
+            self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=self.interval)
+        
         if not delay_optimizer_creation:
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
@@ -341,10 +343,9 @@ class pl_trainer(Trainer):
                 steps_skipped = steps_trained_in_current_epoch
                 steps_trained_in_current_epoch = 0
                 rng_to_sync = True
+            
             step = -1
-            # continue_training = True
             for step, inputs in enumerate(epoch_iterator):
-
                 total_batched_samples += 1
                 if rng_to_sync:
                     self._load_rng_state(resume_from_checkpoint)
@@ -455,21 +456,30 @@ class pl_trainer(Trainer):
 
                     model.zero_grad()
                     self.state.global_step += 1
+                    # if model.device.index==0:
+                    #     print('######################每一步的optimizer',self.optimizer)
+                    #     print("##########################学习率from sceduler",self.lr_scheduler.get_last_lr())
                     #======================modify==============================
+                    # if model.device.index==0:
+                        # print(step,'/',steps_in_epoch)
+                        # print('update_interval',update_interval)
+                        # print('self.state.global_step',self.state.global_step)
+                    #if True:
+                    # ipdb.set_trace()
 
                     if self.state.global_step>=self.update:
                         if model.device.index==0:
                             print("global_step>=update_step", self.state.global_step,'/',self.update)
                             print(self.lr_scheduler.get_last_lr())
-                            # print(len(model.base_model.model.model.layers))
                         self.update+=self.interval
-                        # ipdb.set_trace()
                         #收纳最后
-                        if self.update+self.interval>max_steps:
-                            self.update=max_steps+1
+                        if self.update+self.interval > steps_every:
+                            self.update=steps_every
+                            steps_every += steps_every
+
 
                         if self.model_name=='llama':
-
+                            #for i in range(1):
                             for i in range(len(model.base_model.model.model.layers)):
                                 for adapter in model.peft_config['default'].target_modules:
                                     lora_a = model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default']
@@ -487,6 +497,7 @@ class pl_trainer(Trainer):
                                         model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight.copy_(nn.Linear(f_in, r, bias=False).weight)
                                         nn.init.kaiming_uniform_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_A['default'].weight, a=math.sqrt(5))
                                         nn.init.zeros_(model.base_model.model.model.layers[i].self_attn.__getattr__(adapter).lora_B['default'].weight)
+
                                     # 过去被使用
                                     # base.weight.copy_(delta_ab + base.weight)
                                     # lora_a.weight.copy_(nn.Linear(in_features, r, bias=False).weight) 
@@ -509,7 +520,7 @@ class pl_trainer(Trainer):
                                     lora_a = base_transformer.h[i].attn.__getattr__(module_name).lora_A['default']
                                     lora_b = base_transformer.h[i].attn.__getattr__(module_name).lora_B['default']
                                     base = base_transformer.h[i].attn.__getattr__(module_name).base_layer
-                                    ipdb.set_trace()
+
                                     if i==0 and base.weight.get_device()==0:
                                         print('base_0',base_transformer.h[i].attn.__getattr__(module_name).base_layer.weight)
                                         print('loraa_0',base_transformer.h[i].attn.__getattr__(module_name).lora_A['default'].weight)
@@ -535,24 +546,27 @@ class pl_trainer(Trainer):
                                         print('base_1',base_transformer.h[i].attn.__getattr__(module_name).base_layer.weight)
                                         print('loraa_1',base_transformer.h[i].attn.__getattr__(module_name).lora_A['default'].weight)
                                         print('lorab_1',base_transformer.h[i].attn.__getattr__(module_name).lora_B['default'].weight)
-                            
-                        # RESET OPTIMIZER
-                        def random_pruning_(tensor, prune_ratio):
-                            """
-                            Performs random pruning dimensionality reduction **inplace**.
-                            Only reduces the inner dimensionality, does not affect the shape of the tensor
-                            """
-                            random_pruning_mask = torch.rand_like(tensor) > prune_ratio
-                            tensor.mul_(random_pruning_mask)
-                        
-                        from functools import partial
-                        pruning_fn = partial(random_pruning_, prune_ratio=0.999)
-                        optimizer_state_keys = ["exp_avg", "exp_avg_sq"]
 
-                        for name in optimizer_state_keys:
-                            pruning_fn(self.optimizer.state[set(self.optimizer.state).pop()][name])
-                            # print('#######################optimizer',self.optimizer.state[set(self.optimizer.state).pop()][name])
-                        # ipdb.set_trace()
+                        if base.weight.get_device()==0:
+                            print('add lora to W successfully')
+
+                        # RESET OPTIMIZER
+                        self.optimizer, self.lr_scheduler = None, None
+                        self.accelerator.free_memory()
+                        if self.is_deepspeed_enabled:
+                            self.optimizer, self.lr_scheduler = deepspeed_init(self, num_training_steps=self.interval)
+                        if use_accelerator_prepare:
+                            # self.model.train()
+                            if hasattr(self.lr_scheduler, "step"):
+                                if self.use_apex:
+                                    _ = self.accelerator.prepare(self.model)
+                                else:
+                                    _, self.optimizer = self.accelerator.prepare(self.model, self.optimizer)
+                            else:
+                                # to handle cases wherein we pass "DummyScheduler" such as when it is specified in DeepSpeed config.
+                                _, self.optimizer, self.lr_scheduler = self.accelerator.prepare(
+                                    self.model, self.optimizer, self.lr_scheduler
+                                )   
                     #======================modify==============================
 
                     self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch
