@@ -20,8 +20,6 @@ import logging
 import pathlib
 import typing
 import os
-import random
-import numpy as np
 
 from deepspeed import zero
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
@@ -29,10 +27,11 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import transformers
 from transformers import Trainer, BitsAndBytesConfig, deepspeed
 import torch
-from fastchat.train.plora_trainer_now import lora_trainer
 import numpy as np
 import random
 
+# from fastchat.train.plora_trainer import pl_trainer
+from fastchat.train.plora_trainer_08lora import pl_trainer
 from fastchat.train.train import (
     DataArguments,
     ModelArguments,
@@ -42,7 +41,6 @@ from fastchat.train.train import (
 from fastchat.train.llama_flash_attn_monkey_patch import (
     replace_llama_attn_with_flash_attn,
 )
-
 
 
 @dataclass
@@ -58,8 +56,7 @@ class TrainingArguments(transformers.TrainingArguments):
     flash_attn: bool = False
     interval: int = 100
     init_interval: int = 100
-    save_flag: bool = False
-    custom_save_interval: int = 2
+
 
 @dataclass
 class LoraArguments:
@@ -115,8 +112,7 @@ def train():
     seed = 42
     torch.manual_seed(seed)
     np.random.seed(seed)
-    random.seed(seed) 
-  
+    random.seed(seed)
 
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments, LoraArguments)
@@ -202,7 +198,7 @@ def train():
     tokenizer.pad_token = tokenizer.unk_token
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = lora_trainer(
+    trainer = pl_trainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
 
@@ -214,6 +210,21 @@ def train():
         trainer.train()
     trainer.save_state()
 
+    # check if zero3 mode enabled
+    if deepspeed.is_deepspeed_zero3_enabled():
+        # use deepspeed engine internal function to gather state dict
+        # state_dict_zero3 contains whole parameters of base and lora adapters
+        # we will not extract lora parameters since peft save_pretrained will do that
+        # https://github.com/huggingface/peft/blob/3714aa2fff158fdfa637b2b65952580801d890b2/src/peft/peft_model.py#L125
+        # https://github.com/huggingface/peft/blob/3714aa2fff158fdfa637b2b65952580801d890b2/src/peft/utils/save_and_load.py#L19
+        state_dict_zero3 = trainer.model_wrapped._zero3_consolidated_16bit_state_dict()
+        if training_args.local_rank == 0:
+            state_dict = state_dict_zero3
+    else:
+        # in other mode we use original code from fastchat team, to make sure our change is minimum
+        state_dict = get_peft_state_maybe_zero_3(
+            model.named_parameters(), lora_args.lora_bias
+        )
     print("merge model...")
     model = model.merge_and_unload()
     print("Saving model...")
