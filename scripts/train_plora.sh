@@ -20,8 +20,8 @@ deepspeed --include "localhost:2,3" --master_port 20441 fastchat/train/train_plo
     --save_total_limit 30 \
     --learning_rate 1e-4 \
     --weight_decay 0. \
-    --warmup_ratio 0.03 \
-    --lr_scheduler_type "cosine" \
+    --warmup_steps 40 \
+    --lr_scheduler_type "constant_with_warmup" \
     --logging_strategy "steps" \
     --logging_steps 1 \
     --tf32 True \

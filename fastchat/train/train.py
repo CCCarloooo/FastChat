@@ -27,6 +27,7 @@ import transformers
 from transformers import Trainer
 from transformers.trainer_pt_utils import LabelSmoother
 
+import random
 from datasets import load_dataset, load_from_disk
 from fastchat.conversation import SeparatorStyle
 from fastchat.model.model_adapter import get_conversation_template
@@ -347,6 +348,12 @@ def make_supervised_data_module(
 
 
 def train():
+    
+    seed = 42
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     global local_rank
 
     parser = transformers.HfArgumentParser(
